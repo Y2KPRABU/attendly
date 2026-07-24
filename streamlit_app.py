@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 from pymongo.errors import PyMongoError
 
 from mongodbhelper import (
@@ -36,6 +37,68 @@ def init_session_state():
         st.session_state[SESSION_SELECTED_EVENT] = None
     if SESSION_INFO_EVENT not in st.session_state:
         st.session_state[SESSION_INFO_EVENT] = None
+
+
+def get_route_selection():
+    params = st.experimental_get_query_params()
+    event_id = params.get("event", [None])[0]
+    info = str(params.get("info", [""])[0]).lower() in {"1", "true", "yes"}
+    return event_id, info
+
+
+def push_route(event_id: str, info: bool = False):
+    query = {"event": event_id}
+    if info:
+        query["info"] = "true"
+    else:
+        query["info"] = None
+
+    st.experimental_set_query_params(**{k: v for k, v in query.items() if v is not None})
+    route = f"/event/{event_id}"
+    if info:
+        route += "/info"
+    query_string = f"?event={event_id}" + ("&info=true" if info else "")
+    components.html(
+        f"<script>window.history.replaceState(null, '', '{route}{query_string}');</script>",
+        height=0,
+    )
+
+
+def clear_route():
+    st.experimental_set_query_params()
+    components.html(
+        "<script>window.history.replaceState(null, '', '/');</script>",
+        height=0,
+    )
+
+
+def sync_route_from_path():
+    params = st.experimental_get_query_params()
+    if params.get("event"):
+        return
+
+    components.html(
+        """
+        <script>
+        const path = window.location.pathname;
+        const match = path.match(/^\\/event\\/([^\\/]+)(\\/info)?\\/?$/);
+        if (match) {
+            const eventId = match[1];
+            const info = !!match[2];
+            const search = new URLSearchParams(window.location.search);
+            search.set('event', eventId);
+            if (info) {
+                search.set('info', 'true');
+            } else {
+                search.delete('info');
+            }
+            const newUrl = window.location.origin + path + '?' + search.toString();
+            window.location.replace(newUrl);
+        }
+        </script>
+        """,
+        height=0,
+    )
 
 
 def render_event_info(event, registrations):
@@ -100,8 +163,9 @@ def render_event_action(event, registrations_collection):
                         f"Saved: {main_name} ({response}) with {adult_count} adult(s) and {child_count} child(ren)."
                     )
                 st.session_state[SESSION_SELECTED_EVENT] = None
+                st.session_state[SESSION_INFO_EVENT] = None
+                clear_route()
                 st.rerun()
-
 
 def create_event_section(events_collection):
     st.markdown("## Create a new event")
@@ -123,9 +187,15 @@ def create_event_section(events_collection):
 def main():
     init_session_state()
     load_css()
+    sync_route_from_path()
 
     st.title("Attendly")
     st.markdown("Create and manage event RSVPs with mobile-friendly layout.")
+
+    route_event_id, route_info = get_route_selection()
+    if route_event_id:
+        st.session_state[SESSION_SELECTED_EVENT] = route_event_id if not route_info else None
+        st.session_state[SESSION_INFO_EVENT] = route_event_id if route_info else None
 
     try:
         events_collection = get_events_collection()
@@ -152,14 +222,10 @@ def main():
         for event in all_events:
             row_col1, row_col2, row_col3 = st.columns([4, 2, 1])
             if row_col1.button(event["name"], key=f"open_{event['id']}"):
-                st.session_state[SESSION_SELECTED_EVENT] = event["id"]
-                st.session_state[SESSION_INFO_EVENT] = None
-                st.rerun()
+                push_route(event["id"])
             row_col2.markdown(f"`{event['id']}`")
             if row_col3.button("Info", key=f"info_{event['id']}"):
-                st.session_state[SESSION_INFO_EVENT] = event["id"]
-                st.session_state[SESSION_SELECTED_EVENT] = None
-                st.rerun()
+                push_route(event["id"], info=True)
 
     st.markdown("---")
     selected_id = st.session_state[SESSION_SELECTED_EVENT]
