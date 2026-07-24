@@ -165,11 +165,15 @@ def get_attendance_totals(registrations):
 def get_attendee_rows(registrations):
     return [
         {
-            "Main Attendee": registration["main_name"],
-            "Response": registration["response"],
-            "Adults": registration["adult_count"],
-            "Children": registration["child_count"],
+            "main_name": registration.get("main_name", ""),
+            "response": registration.get("response", ""),
+            "adult_count": registration.get("adult_count", 0),
+            "child_count": registration.get("child_count", 0),
+            "Main Attendee": registration.get("main_name", ""),
+            "Response": registration.get("response", ""),
+            "Adults": registration.get("adult_count", 0),
+            "Children": registration.get("child_count", 0),
         }
         for registration in registrations
-        if registration["response"] in {"Yes", "Maybe"}
+        if registration.get("response") in {"Yes", "Maybe"}
     ]

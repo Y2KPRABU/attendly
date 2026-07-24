@@ -104,12 +104,22 @@ def render_attendance_html(event):
     st.html(html, unsafe_allow_javascript=True)
 
 
+def _get_display_value(row, *keys, default=""):
+    for key in keys:
+        if key in row and row[key] is not None:
+            return row[key]
+    return default
+
+
 def render_info_html(event, registrations):
     template = load_static_html("info.html")
     registered_count, total_adults, total_children = get_attendance_totals(registrations)
     rows = get_attendee_rows(registrations)
     rows_html = "\n".join(
-        f"<tr><td>{row['main_name']}</td><td>{row['response']}</td><td>{row['adult_count']}</td><td>{row['child_count']}</td></tr>"
+        f"<tr><td>{_get_display_value(row, 'main_name', 'Main Attendee', 'name', default='')}</td>"
+        f"<td>{_get_display_value(row, 'response', 'Response', default='')}</td>"
+        f"<td>{_get_display_value(row, 'adult_count', 'Adults', default=0)}</td>"
+        f"<td>{_get_display_value(row, 'child_count', 'Children', default=0)}</td></tr>"
         for row in rows
     )
     html = (
