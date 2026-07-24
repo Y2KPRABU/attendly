@@ -1,5 +1,7 @@
 import os
 from datetime import datetime
+from pathlib import Path
+import tomllib
 
 import streamlit as st
 from pymongo import MongoClient
@@ -12,12 +14,33 @@ DEFAULT_DB_NAME = "attendly"
 
 def get_mongo_uri():
     uri = None
+    checked_sources = []
+
     if hasattr(st, "secrets") and "mongodb" in st.secrets:
         uri = st.secrets.mongodb.get("uri")
-    uri = uri or os.environ.get(MONGODB_URI_ENV)
+        checked_sources.append("Streamlit secrets")
+
+    env_uri = os.environ.get(MONGODB_URI_ENV)
+    if env_uri:
+        uri = uri or env_uri
+    checked_sources.append("MONGODB_URI environment variable")
+
     if not uri:
+        secrets_path = Path(__file__).parent / ".streamlit" / "secrets.toml"
+        if secrets_path.exists():
+            try:
+                with secrets_path.open("rb") as f:
+                    secrets = tomllib.load(f)
+                uri = secrets.get("mongodb", {}).get("uri")
+                checked_sources.append(".streamlit/secrets.toml")
+            except Exception:
+                uri = None
+
+    if not uri:
+        sources = ", ".join(checked_sources)
         raise ValueError(
-            "MongoDB URI not found. Set the MONGODB_URI environment variable or add it to `.streamlit/secrets.toml` under [mongodb]."
+            "MongoDB URI not found. Checked: "
+            f"{sources}. Set the MONGODB_URI environment variable or add it to `.streamlit/secrets.toml` under [mongodb]."
         )
     return uri
 
