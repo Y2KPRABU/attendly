@@ -1,11 +1,12 @@
 [project]
-name = "blank-app-template"
+name = "Attendance-Tracker"
 version = "0.1.0"
-description = "A simple Streamlit app template."
+description = "A simple Streamlit app for tracking event attendance."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "streamlit>=1.60.0",
+    "pymongo>=4.0.0",
 ]
 
 [tool.uv]

@@ -1,0 +1,81 @@
+/* Professional Attendly theme */
+:root {
+  --primary: #1e3a8a;
+  --primary-dark: #14254f;
+  --primary-soft: #60a5fa;
+  --background: #f4f7fb;
+  --surface: #edf2f7;
+  --surface-strong: #dbe4ef;
+  --text: #10203f;
+  --muted: #4b5563;
+  --danger: #c0392b;
+}
+
+/* Body and container background */
+.stApp {
+  background-color: var(--background);
+  color: var(--text);
+}
+
+/* Headers and major labels */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--primary-dark);
+}
+
+/* Primary buttons */
+.stButton > button {
+  background-color: var(--primary);
+  color: white;
+  border: 1px solid var(--primary-dark);
+}
+
+.stButton > button:hover {
+  background-color: var(--primary-dark);
+}
+
+/* Secondary button style */
+.stButton>button[disabled] {
+  background-color: var(--surface-strong);
+  color: var(--muted);
+}
+
+/* Forms and cards */
+[data-testid="stForm"] {
+  background: var(--surface);
+  border: 1px solid var(--surface-strong);
+  border-radius: 16px;
+  padding: 1.2rem;
+}
+
+/* Inputs */
+.stTextInput>div>div>input,
+.stNumberInput>div>div>input,
+.stRadio>div>label {
+  border-radius: 0.75rem;
+  border: 1px solid #cbd5e1;
+}
+
+/* Table header style */
+.stTable th {
+  background-color: var(--primary);
+  color: white;
+}
+
+/* Card sections */
+.stContainer,
+.stExpander {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #d1d5db;
+  padding: 1rem;
+}
+
+/* Alerts and info boxes */
+.stAlert {
+  border-left: 4px solid var(--primary);
+}
+
+/* Links and accent text */
+a, a:hover {
+  color: var(--primary);
+}
