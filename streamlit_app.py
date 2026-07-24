@@ -4,6 +4,7 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 from pymongo.errors import PyMongoError
+import logging
 
 from mongodbhelper import (
     get_events_collection,
@@ -42,11 +43,27 @@ def init_session_state():
         st.session_state[SESSION_SELECTED_EVENT] = None
     if SESSION_INFO_EVENT not in st.session_state:
         st.session_state[SESSION_INFO_EVENT] = None
+    if "_debug_logs" not in st.session_state:
+        st.session_state["_debug_logs"] = []
+
+
+def _debug(msg: str):
+    """Log to server logs and store a copy for display in the app sidebar."""
+    try:
+        logging.debug(msg)
+    except Exception:
+        pass
+    try:
+        st.session_state["_debug_logs"].append(str(msg))
+    except Exception:
+        # If Streamlit isn't fully initialized, still print to stdout for logs
+        print(msg)
 
 
 def get_route_selection():
     # Normalize query param keys to be case-insensitive (some hosts may change casing)
     params = {k.lower(): v for k, v in st.query_params.items()}
+    _debug(f"Raw query params: {st.query_params}")
     event_id = params.get("event", [None])[0]
     info_raw = params.get("info", [""])[0]
     info = str(info_raw).lower() in {"1", "true", "yes"}
@@ -66,6 +83,8 @@ def load_static_html(filename: str) -> str:
 def render_attendance_html(event):
     template = load_static_html("attendance.html")
     html = template.replace("{event_name}", event["name"]).replace("{event_id}", event["id"])
+    _debug(f"Rendering attendance HTML for event_id={event['id']} (len={len(html)})")
+    _debug(html[:2000])
     st.html(html, unsafe_allow_javascript=True)
 
 
@@ -86,6 +105,8 @@ def render_info_html(event, registrations):
         .replace("{total_children}", str(total_children))
         .replace("{rows}", rows_html)
     )
+    _debug(f"Rendering info HTML for event_id={event['id']} registered={registered_count} adults={total_adults} children={total_children}")
+    _debug(html[:3000])
     st.html(html, unsafe_allow_javascript=True)
 
 
@@ -211,6 +232,7 @@ def main():
 
     st.title("Attendly")
     st.markdown("Create and manage event RSVPs with mobile-friendly layout.")
+    _debug(f"Starting main(); route_event_id={route_event_id!r}, route_info={route_info!r}")
 
     try:
         events_collection = get_events_collection()
@@ -220,6 +242,7 @@ def main():
         return
 
     all_events = list_events(events_collection)
+    _debug(f"Loaded {len(all_events)} events from DB")
 
     # If an event is specified in query params, render its view directly.
     if route_event_id:
@@ -245,12 +268,16 @@ def main():
             try:
                 ids = [event["id"] for event in all_events]
                 st.info(f"Available event ids: {', '.join(ids)}")
+                _debug(f"No active_event for requested id {route_event_id!r}; available ids: {ids}")
             except Exception:
                 pass
         else:
+            _debug(f"Found active_event: {active_event}")
             if route_info:
+                _debug("route_info True: rendering summary view")
                 st.markdown(f"## Summary for {active_event['name']}")
                 registrations = list_registrations(registrations_collection, active_event["id"])
+                _debug(f"Loaded {len(registrations)} registrations for event {active_event['id']}")
                 render_info_html(active_event, registrations)
                 return
             else:
@@ -270,6 +297,7 @@ def main():
     if not all_events:
         st.info("No events yet. Create an event to get started.")
     else:
+        _debug(f"Rendering events list with {len(all_events)} events")
         header_col1, header_col2, header_col3 = st.columns([4, 2, 1])
         header_col1.markdown("**Event name**")
         header_col2.markdown("**Event ID**")
@@ -279,11 +307,20 @@ def main():
             row_col1, row_col2, row_col3 = st.columns([4, 2, 1])
             event_link = f"/?event={event['id']}"
             info_link = f"/?event={event['id']}&info=true"
+            _debug(f"Event row: id={event['id']} name={event['name']} info_link={info_link}")
             primary_style = "display:inline-block;padding:10px 14px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;font-weight:600;font-size:16px;"
             secondary_style = "display:inline-block;padding:8px 12px;border-radius:8px;background:#f3f4f6;color:#111;text-decoration:none;font-weight:600;border:1px solid #e5e7eb;"
             row_col1.markdown(f"<a href='{event_link}' style='{primary_style}'>{event['name']}</a>", unsafe_allow_html=True)
             row_col2.markdown(f"`{event['id']}`")
             row_col3.markdown(f"<a href='{info_link}' style='{secondary_style}'>Info</a>", unsafe_allow_html=True)
+
+    # Debug sidebar: show the last debug messages for quick inspection
+    try:
+        with st.sidebar.expander("Debug logs (latest first)"):
+            for msg in reversed(st.session_state.get("_debug_logs", [])[-50:]):
+                st.text(msg)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
