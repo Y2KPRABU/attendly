@@ -59,9 +59,10 @@ def push_route(event_id: str, info: bool = False):
     query = f"?event={event_id}"
     if info:
         query += "&info=true"
-    template = load_static_html("route_push.html")
+    template = load_static_html("route_nav.html")
     html = (
         template
+        .replace("{mode}", "push")
         .replace("{route}", route)
         .replace("{query}", query)
     )
@@ -76,7 +77,8 @@ def clear_route():
 
 
 def sync_route_from_path():
-    html = load_static_html("route_sync.html")
+    template = load_static_html("route_nav.html")
+    html = template.replace("{mode}", "sync")
     st.html(html, unsafe_allow_javascript=True)
 
 
@@ -87,9 +89,10 @@ def clean_route_path(event_id: str, info: bool = False):
     query = f"?event={event_id}"
     if info:
         query += "&info=true"
-    template = load_static_html("route_push.html")
+    template = load_static_html("route_nav.html")
     html = (
         template
+        .replace("{mode}", "push")
         .replace("{route}", route)
         .replace("{query}", query)
     )
@@ -304,10 +307,12 @@ def main():
             for event in all_events:
                 row_col1, row_col2, row_col3 = st.columns([4, 2, 1])
                 event_link = f"/event/{event['id']}?event={event['id']}"
-                row_col1.markdown(f"[{event['name']}]({event_link})")
-                row_col2.markdown(f"`{event['id']}`")
                 info_link = f"/event/{event['id']}/info?event={event['id']}&info=true"
-                row_col3.markdown(f"[Info]({info_link})")
+                primary_style = "display:inline-block;padding:10px 14px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;font-weight:600;font-size:16px;"
+                secondary_style = "display:inline-block;padding:8px 12px;border-radius:8px;background:#f3f4f6;color:#111;text-decoration:none;font-weight:600;border:1px solid #e5e7eb;"
+                row_col1.markdown(f"<a href='{event_link}' style='{primary_style}'>{event['name']}</a>", unsafe_allow_html=True)
+                row_col2.markdown(f"`{event['id']}`")
+                row_col3.markdown(f"<a href='{info_link}' style='{secondary_style}'>Info</a>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
