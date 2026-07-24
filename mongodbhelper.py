@@ -26,15 +26,21 @@ def get_mongo_uri():
     checked_sources.append("MONGODB_URI environment variable")
 
     if not uri:
-        secrets_path = Path(__file__).parent / ".streamlit" / "secrets.toml"
-        if secrets_path.exists():
-            try:
-                with secrets_path.open("rb") as f:
-                    secrets = tomllib.load(f)
-                uri = secrets.get("mongodb", {}).get("uri")
-                checked_sources.append(".streamlit/secrets.toml")
-            except Exception:
-                uri = None
+        possible_files = [
+            Path.cwd() / ".streamlit" / "secrets.toml",
+            Path(__file__).parent / ".streamlit" / "secrets.toml",
+        ]
+        for secrets_path in possible_files:
+            if secrets_path.exists():
+                try:
+                    with secrets_path.open("rb") as f:
+                        secrets = tomllib.load(f)
+                    uri = secrets.get("mongodb", {}).get("uri")
+                    checked_sources.append(str(secrets_path))
+                    if uri:
+                        break
+                except Exception:
+                    uri = None
 
     if not uri:
         sources = ", ".join(checked_sources)
