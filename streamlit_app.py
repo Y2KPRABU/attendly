@@ -56,8 +56,15 @@ def push_route(event_id: str, info: bool = False):
     route = f"/event/{event_id}"
     if info:
         route += "/info"
+    query = f"?event={event_id}"
+    if info:
+        query += "&info=true"
     template = load_static_html("route_push.html")
-    html = template.replace("{route}", route).replace("{event_id}", event_id)
+    html = (
+        template
+        .replace("{route}", route)
+        .replace("{query}", query)
+    )
     st.html(html, unsafe_allow_javascript=True)
 
 
@@ -77,8 +84,15 @@ def clean_route_path(event_id: str, info: bool = False):
     route = f"/event/{event_id}"
     if info:
         route += "/info"
+    query = f"?event={event_id}"
+    if info:
+        query += "&info=true"
     template = load_static_html("route_push.html")
-    html = template.replace("{route}", route)
+    html = (
+        template
+        .replace("{route}", route)
+        .replace("{query}", query)
+    )
     st.html(html, unsafe_allow_javascript=True)
 
 
@@ -289,14 +303,11 @@ def main():
 
             for event in all_events:
                 row_col1, row_col2, row_col3 = st.columns([4, 2, 1])
-                if row_col1.button(event["name"], key=f"open_{event['id']}"):
-                    st.session_state[SESSION_SELECTED_EVENT] = event["id"]
-                    st.session_state[SESSION_INFO_EVENT] = None
-                    push_route(event["id"])
+                event_link = f"/event/{event['id']}?event={event['id']}"
+                row_col1.markdown(f"[{event['name']}]({event_link})")
                 row_col2.markdown(f"`{event['id']}`")
-                if row_col3.button("Info", key=f"info_{event['id']}"):
-                    st.session_state[SESSION_INFO_EVENT] = event["id"]
-                    push_route(event["id"], info=True)
+                info_link = f"/event/{event['id']}/info?event={event['id']}&info=true"
+                row_col3.markdown(f"[Info]({info_link})")
 
 
 if __name__ == "__main__":
