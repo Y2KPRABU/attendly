@@ -83,8 +83,10 @@ def load_static_html(filename: str) -> str:
 def render_attendance_html(event):
     template = load_static_html("attendance.html")
     html = template.replace("{event_name}", event["name"]).replace("{event_id}", event["id"])
-    _debug(f"Rendering attendance HTML for event_id={event['id']} (len={len(html)})")
+    debug_message = f"Rendering attendance HTML for event_id={event['id']}"
+    _debug(debug_message)
     _debug(html[:2000])
+    html += f"\n<script>console.log({repr(debug_message)});</script>"
     st.html(html, unsafe_allow_javascript=True)
 
 
@@ -105,8 +107,12 @@ def render_info_html(event, registrations):
         .replace("{total_children}", str(total_children))
         .replace("{rows}", rows_html)
     )
-    _debug(f"Rendering info HTML for event_id={event['id']} registered={registered_count} adults={total_adults} children={total_children}")
+    debug_message = (
+        f"Rendering info HTML for event_id={event['id']} registered={registered_count} adults={total_adults} children={total_children}"
+    )
+    _debug(debug_message)
     _debug(html[:3000])
+    html += f"\n<script>console.log({repr(debug_message)});</script>"
     st.html(html, unsafe_allow_javascript=True)
 
 
@@ -233,6 +239,8 @@ def main():
     st.title("Attendly")
     st.markdown("Create and manage event RSVPs with mobile-friendly layout.")
     _debug(f"Starting main(); route_event_id={route_event_id!r}, route_info={route_info!r}")
+    st.markdown("### Debug trace")
+    st.code("\n".join(st.session_state.get("_debug_logs", [])[-10:]), language="text")
 
     try:
         events_collection = get_events_collection()
