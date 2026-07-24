@@ -28,6 +28,12 @@ SESSION_INFO_EVENT = "info_event_id"
 # `route_active`. Define it here to avoid NameError during a rolling deploy.
 route_active = False
 
+# Demo fallback data so the app still works when MongoDB is not configured.
+FALLBACK_EVENTS = [{"id": "Ev001", "name": "Family"}]
+FALLBACK_REGISTRATIONS = {
+    "Ev001": [{"response": "Yes", "main_name": "Demo attendee", "adult_count": 2, "child_count": 1}],
+}
+
 
 def load_css():
     css_path = Path(__file__).parent / ".streamlit" / "theme.css"
@@ -60,13 +66,21 @@ def _debug(msg: str):
         print(msg)
 
 
+def _coerce_query_value(value):
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        return value[0] if value else None
+    return value
+
+
 def get_route_selection():
     # Normalize query param keys to be case-insensitive (some hosts may change casing)
     params = {k.lower(): v for k, v in st.query_params.items()}
     _debug(f"Raw query params: {st.query_params}")
-    event_id = params.get("event", [None])[0]
-    info_raw = params.get("info", [""])[0]
-    info = str(info_raw).lower() in {"1", "true", "yes"}
+    event_id = _coerce_query_value(params.get("event"))
+    info_raw = _coerce_query_value(params.get("info"))
+    info = str(info_raw or "").lower() in {"1", "true", "yes"}
     return event_id, info
 
 
@@ -116,22 +130,36 @@ def render_info_html(event, registrations):
     st.html(html, unsafe_allow_javascript=True)
 
 
+def _insert_registration_record(registrations_collection, event_id, response, main_name, adult_count, child_count):
+    payload = {
+        "event_id": event_id,
+        "response": response,
+        "main_name": main_name.strip(),
+        "adult_count": adult_count,
+        "child_count": child_count,
+    }
+    if registrations_collection is None:
+        FALLBACK_REGISTRATIONS.setdefault(event_id, []).append(payload)
+        return payload
+    return insert_registration(registrations_collection, event_id, response, main_name, adult_count, child_count)
+
+
 def process_attendance_submission(event, registrations_collection):
     params = st.query_params
-    if params.get("submit", ["0"])[0] != "1":
+    if _coerce_query_value(params.get("submit")) != "1":
         return False
 
-    response = params.get("response", [""])[0]
-    main_name = params.get("name", [""])[0].strip()
-    adult_count = int(params.get("adult_count", ["0"])[0] or 0)
-    child_count = int(params.get("child_count", ["0"])[0] or 0)
+    response = _coerce_query_value(params.get("response")) or ""
+    main_name = (_coerce_query_value(params.get("name")) or "").strip()
+    adult_count = int(_coerce_query_value(params.get("adult_count")) or 0)
+    child_count = int(_coerce_query_value(params.get("child_count")) or 0)
 
     if response not in {"Yes", "No", "Maybe"}:
         st.warning("Please select a valid response.")
         return True
 
     if response == "No":
-        insert_registration(registrations_collection, event["id"], response, "No attendee", 0, 0)
+        _insert_registration_record(registrations_collection, event["id"], response, "No attendee", 0, 0)
         st.session_state["attendance_success"] = "Your attendance response has been recorded as No."
         return True
 
@@ -139,7 +167,7 @@ def process_attendance_submission(event, registrations_collection):
         st.warning("Please enter the main attendee name.")
         return True
 
-    insert_registration(registrations_collection, event["id"], response, main_name, adult_count, child_count)
+    _insert_registration_record(registrations_collection, event["id"], response, main_name, adult_count, child_count)
     st.session_state["attendance_success"] = (
         f"Saved: {main_name} ({response}) with {adult_count} adult(s) and {child_count} child(ren)."
     )
@@ -212,6 +240,14 @@ def render_event_action(event, registrations_collection):
                 st.markdown("[Back to events](/)")
                 st.rerun()
 
+def _insert_event_record(events_collection, event_name):
+    if events_collection is None:
+        payload = {"id": "Ev999", "name": event_name.strip()}
+        FALLBACK_EVENTS.append(payload)
+        return payload
+    return insert_event(events_collection, event_name)
+
+
 def create_event_section(events_collection):
     st.markdown("## Create a new event")
     with st.form("create_event_form"):
@@ -221,10 +257,17 @@ def create_event_section(events_collection):
             event_name = event_name.strip()
             if not event_name:
                 st.warning("Event name cannot be empty.")
+            elif events_collection is None:
+                if any(str(event.get("name", "")).lower() == event_name.lower() for event in FALLBACK_EVENTS):
+                    st.warning("An event with that name already exists. Choose a unique name.")
+                else:
+                    _insert_event_record(events_collection, event_name)
+                    st.success(f"Event '{event_name}' created.")
+                    st.rerun()
             elif find_event_by_name(events_collection, event_name):
                 st.warning("An event with that name already exists. Choose a unique name.")
             else:
-                insert_event(events_collection, event_name)
+                _insert_event_record(events_collection, event_name)
                 st.success(f"Event '{event_name}' created.")
                 st.rerun()
 
@@ -235,6 +278,7 @@ def main():
 
     # Use query params for routing: ?event=<id> and optional &info=true
     route_event_id, route_info = get_route_selection()
+    debug_mode = str(_coerce_query_value(st.query_params.get("debug")) or "").lower() in {"1", "true", "yes"}
 
     st.title("Attendly")
     st.markdown("Create and manage event RSVPs with mobile-friendly layout.")
@@ -242,21 +286,42 @@ def main():
     st.markdown("### Debug trace")
     st.code("\n".join(st.session_state.get("_debug_logs", [])[-10:]), language="text")
 
+    events_collection = None
+    registrations_collection = None
     try:
+        from mongodbhelper import get_mongo_uri, get_database
+
+        mongo_uri = get_mongo_uri()
+        db_name = None
+        if hasattr(st, "secrets") and "mongodb" in st.secrets:
+            db_name = st.secrets.mongodb.get("db")
+        db_name = db_name or os.environ.get("MONGODB_DB", "attendly")
+
+        if debug_mode:
+            st.caption(f"Debug Mongo URI: {mongo_uri}")
+            st.caption(f"Debug DB name: {db_name}")
+            print(f"[attendly-debug] Mongo URI: {mongo_uri}")
+            print(f"[attendly-debug] Mongo DB: {db_name}")
+
         events_collection = get_events_collection()
         registrations_collection = get_registrations_collection()
     except (PyMongoError, ValueError) as error:
-        st.error(f"Could not connect to MongoDB: {error}")
-        return
+        st.warning(f"MongoDB not configured; using demo data: {error}")
+        _debug(f"MongoDB connection failed: {error}")
+        events_collection = None
+        registrations_collection = None
 
-    all_events = list_events(events_collection)
-    _debug(f"Loaded {len(all_events)} events from DB")
+    all_events = list(FALLBACK_EVENTS) if events_collection is None else list_events(events_collection)
+    _debug(f"Loaded {len(all_events)} events from {'demo data' if events_collection is None else 'DB'}")
 
     # If an event is specified in query params, render its view directly.
     if route_event_id:
         # Try direct DB lookup first, then fall back to in-memory list matches.
         try:
-            active_event = find_event_by_id(events_collection, route_event_id)
+            if events_collection is None:
+                active_event = None
+            else:
+                active_event = find_event_by_id(events_collection, route_event_id)
         except Exception:
             active_event = None
         if not active_event:
@@ -284,7 +349,10 @@ def main():
             if route_info:
                 _debug("route_info True: rendering summary view")
                 st.markdown(f"## Summary for {active_event['name']}")
-                registrations = list_registrations(registrations_collection, active_event["id"])
+                if registrations_collection is None:
+                    registrations = list(FALLBACK_REGISTRATIONS.get(active_event["id"], []))
+                else:
+                    registrations = list_registrations(registrations_collection, active_event["id"])
                 _debug(f"Loaded {len(registrations)} registrations for event {active_event['id']}")
                 render_info_html(active_event, registrations)
                 return
