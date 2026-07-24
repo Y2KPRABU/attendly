@@ -52,49 +52,7 @@ def load_static_html(filename: str) -> str:
     return html_path.read_text()
 
 
-def push_route(event_id: str, info: bool = False):
-    route = f"/event/{event_id}"
-    if info:
-        route += "/info"
-    query = f"?event={event_id}"
-    if info:
-        query += "&info=true"
-    template = load_static_html("route_nav.html")
-    html = (
-        template
-        .replace("{mode}", "push")
-        .replace("{route}", route)
-        .replace("{query}", query)
-    )
-    st.html(html, unsafe_allow_javascript=True)
-
-
-def clear_route():
-    st.html(
-        "<script>window.history.replaceState(null, '', '/');</script>",
-        unsafe_allow_javascript=True,
-    )
-
-
-def sync_route_from_path():
-    template = load_static_html("route_nav.html")
-    html = template.replace("{mode}", "sync")
-    st.html(html, unsafe_allow_javascript=True)
-
-
-def clean_route_path(event_id: str, info: bool = False):
-    route = f"/event/{event_id}"
-    if info:
-        route += "/info"
-    query = f"?event={event_id}"
-    if info:
-        query += "&info=true"
-    # Use history.replaceState to update the browser URL without triggering a reload.
-    safe_route = route + query
-    st.html(
-        f"<script>try{{window.history.replaceState(null, '', '{safe_route}');}}catch(e){{/* ignore */}}</script>",
-        unsafe_allow_javascript=True,
-    )
+# Simplified navigation: use query-params only. No JS-based path rewriting.
 
 
 def render_attendance_html(event):
@@ -216,7 +174,7 @@ def render_event_action(event, registrations_collection):
                     )
                 st.session_state[SESSION_SELECTED_EVENT] = None
                 st.session_state[SESSION_INFO_EVENT] = None
-                clear_route()
+                st.markdown("[Back to events](/)")
                 st.rerun()
 
 def create_event_section(events_collection):
@@ -240,18 +198,8 @@ def main():
     init_session_state()
     load_css()
 
+    # Use query params for routing: ?event=<id> and optional &info=true
     route_event_id, route_info = get_route_selection()
-    sync_route_from_path()
-    route_active = False
-    if route_event_id:
-        route_active = True
-        if route_info:
-            st.session_state[SESSION_INFO_EVENT] = route_event_id
-            st.session_state[SESSION_SELECTED_EVENT] = None
-        else:
-            st.session_state[SESSION_SELECTED_EVENT] = route_event_id
-            st.session_state[SESSION_INFO_EVENT] = None
-        clean_route_path(route_event_id, route_info)
 
     st.title("Attendly")
     st.markdown("Create and manage event RSVPs with mobile-friendly layout.")
@@ -265,28 +213,45 @@ def main():
 
     all_events = list_events(events_collection)
 
-    if route_active:
-        selected_id = st.session_state[SESSION_SELECTED_EVENT]
-        info_id = st.session_state[SESSION_INFO_EVENT]
-
-        if selected_id:
-            active_event = next((event for event in all_events if event["id"] == selected_id), None)
-            if active_event:
+    # If an event is specified in query params, render its view directly.
+    if route_event_id:
+        # Try direct DB lookup first, then fall back to in-memory list matches.
+        try:
+            active_event = find_event_by_id(events_collection, route_event_id)
+        except Exception:
+            active_event = None
+        if not active_event:
+            # case-insensitive or prefix match fallback
+            active_event = next(
+                (event for event in all_events if str(event.get("id", "")).lower() == str(route_event_id).lower()),
+                None,
+            )
+        if not active_event:
+            active_event = next(
+                (event for event in all_events if str(event.get("id", "")).lower().startswith(str(route_event_id).lower())),
+                None,
+            )
+        if not active_event:
+            st.error("Event not found. Showing available events below.")
+            # Helpful debug: list available event ids
+            try:
+                ids = [event["id"] for event in all_events]
+                st.info(f"Available event ids: {', '.join(ids)}")
+            except Exception:
+                pass
+        else:
+            if route_info:
+                st.markdown(f"## Summary for {active_event['name']}")
+                registrations = list_registrations(registrations_collection, active_event["id"])
+                render_info_html(active_event, registrations)
+                return
+            else:
                 st.markdown(f"## RSVP for {active_event['name']}")
                 processed = process_attendance_submission(active_event, registrations_collection)
                 if processed and st.session_state.get("attendance_success"):
                     st.success(st.session_state.pop("attendance_success"))
                 render_attendance_html(active_event)
                 return
-        elif info_id:
-            info_event = next((event for event in all_events if event["id"] == info_id), None)
-            if info_event:
-                st.markdown(f"## Summary for {info_event['name']}")
-                registrations = list_registrations(registrations_collection, info_event["id"])
-                render_info_html(info_event, registrations)
-                return
-
-        st.error("Event not found. Showing available events below.")
 
     if not route_active:
         with st.container():
