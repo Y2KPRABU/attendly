@@ -253,31 +253,29 @@ def main():
                 render_attendance_html(active_event)
                 return
 
-    if not route_active:
-        with st.container():
-            create_event_section(events_collection)
+    # Render home page: create-event section and the events table/list
+    with st.container():
+        create_event_section(events_collection)
 
-        st.markdown("---")
-        st.markdown("## Events")
-        if not all_events:
-            st.info("No events yet. Create an event to get started.")
-        else:
-            header_col1, header_col2, header_col3 = st.columns([4, 2, 1])
-            header_col1.markdown("**Event name**")
-            header_col2.markdown("**Event ID**")
-            header_col3.markdown("**Actions**")
+    st.markdown("---")
+    st.markdown("## Events")
+    if not all_events:
+        st.info("No events yet. Create an event to get started.")
+    else:
+        header_col1, header_col2, header_col3 = st.columns([4, 2, 1])
+        header_col1.markdown("**Event name**")
+        header_col2.markdown("**Event ID**")
+        header_col3.markdown("**Actions**")
 
-            for event in all_events:
-                row_col1, row_col2, row_col3 = st.columns([4, 2, 1])
-                # Navigate to root with query params first so Streamlit receives them,
-                # then `clean_route_path` will rewrite the visible path using replaceState.
-                event_link = f"/?event={event['id']}"
-                info_link = f"/?event={event['id']}&info=true"
-                primary_style = "display:inline-block;padding:10px 14px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;font-weight:600;font-size:16px;"
-                secondary_style = "display:inline-block;padding:8px 12px;border-radius:8px;background:#f3f4f6;color:#111;text-decoration:none;font-weight:600;border:1px solid #e5e7eb;"
-                row_col1.markdown(f"<a href='{event_link}' style='{primary_style}'>{event['name']}</a>", unsafe_allow_html=True)
-                row_col2.markdown(f"`{event['id']}`")
-                row_col3.markdown(f"<a href='{info_link}' style='{secondary_style}'>Info</a>", unsafe_allow_html=True)
+        for event in all_events:
+            row_col1, row_col2, row_col3 = st.columns([4, 2, 1])
+            event_link = f"/?event={event['id']}"
+            info_link = f"/?event={event['id']}&info=true"
+            primary_style = "display:inline-block;padding:10px 14px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;font-weight:600;font-size:16px;"
+            secondary_style = "display:inline-block;padding:8px 12px;border-radius:8px;background:#f3f4f6;color:#111;text-decoration:none;font-weight:600;border:1px solid #e5e7eb;"
+            row_col1.markdown(f"<a href='{event_link}' style='{primary_style}'>{event['name']}</a>", unsafe_allow_html=True)
+            row_col2.markdown(f"`{event['id']}`")
+            row_col3.markdown(f"<a href='{info_link}' style='{secondary_style}'>Info</a>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
