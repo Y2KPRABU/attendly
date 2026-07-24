@@ -1,4 +1,5 @@
 <script>
 const route = "{route}";
-window.parent.history.replaceState(null, '', route);
+const eventId = "{event_id}";
+window.parent.location.replace(route + '?event=' + encodeURIComponent(eventId));
 </script>

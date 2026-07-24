@@ -57,7 +57,7 @@ def push_route(event_id: str, info: bool = False):
     if info:
         route += "/info"
     template = load_static_html("route_push.html")
-    html = template.replace("{route}", route)
+    html = template.replace("{route}", route).replace("{event_id}", event_id)
     st.html(html, unsafe_allow_javascript=True)
 
 
@@ -80,6 +80,62 @@ def clean_route_path(event_id: str, info: bool = False):
     template = load_static_html("route_push.html")
     html = template.replace("{route}", route)
     st.html(html, unsafe_allow_javascript=True)
+
+
+def render_attendance_html(event):
+    template = load_static_html("attendance.html")
+    html = template.replace("{event_name}", event["name"]).replace("{event_id}", event["id"])
+    st.html(html, unsafe_allow_javascript=True)
+
+
+def render_info_html(event, registrations):
+    template = load_static_html("info.html")
+    registered_count, total_adults, total_children = get_attendance_totals(registrations)
+    rows = get_attendee_rows(registrations)
+    rows_html = "\n".join(
+        f"<tr><td>{row['main_name']}</td><td>{row['response']}</td><td>{row['adult_count']}</td><td>{row['child_count']}</td></tr>"
+        for row in rows
+    )
+    html = (
+        template
+        .replace("{event_name}", event["name"])
+        .replace("{event_id}", event["id"])
+        .replace("{registered_count}", str(registered_count))
+        .replace("{total_adults}", str(total_adults))
+        .replace("{total_children}", str(total_children))
+        .replace("{rows}", rows_html)
+    )
+    st.html(html, unsafe_allow_javascript=True)
+
+
+def process_attendance_submission(event, registrations_collection):
+    params = st.query_params
+    if params.get("submit", ["0"])[0] != "1":
+        return False
+
+    response = params.get("response", [""])[0]
+    main_name = params.get("name", [""])[0].strip()
+    adult_count = int(params.get("adult_count", ["0"])[0] or 0)
+    child_count = int(params.get("child_count", ["0"])[0] or 0)
+
+    if response not in {"Yes", "No", "Maybe"}:
+        st.warning("Please select a valid response.")
+        return True
+
+    if response == "No":
+        insert_registration(registrations_collection, event["id"], response, "No attendee", 0, 0)
+        st.session_state["attendance_success"] = "Your attendance response has been recorded as No."
+        return True
+
+    if not main_name:
+        st.warning("Please enter the main attendee name.")
+        return True
+
+    insert_registration(registrations_collection, event["id"], response, main_name, adult_count, child_count)
+    st.session_state["attendance_success"] = (
+        f"Saved: {main_name} ({response}) with {adult_count} adult(s) and {child_count} child(ren)."
+    )
+    return True
 
 
 def render_event_info(event, registrations):
@@ -202,14 +258,17 @@ def main():
             active_event = next((event for event in all_events if event["id"] == selected_id), None)
             if active_event:
                 st.markdown(f"## RSVP for {active_event['name']}")
-                render_event_action(active_event, registrations_collection)
+                processed = process_attendance_submission(active_event, registrations_collection)
+                if processed and st.session_state.get("attendance_success"):
+                    st.success(st.session_state.pop("attendance_success"))
+                render_attendance_html(active_event)
                 return
         elif info_id:
             info_event = next((event for event in all_events if event["id"] == info_id), None)
             if info_event:
                 st.markdown(f"## Summary for {info_event['name']}")
                 registrations = list_registrations(registrations_collection, info_event["id"])
-                render_event_info(info_event, registrations)
+                render_info_html(info_event, registrations)
                 return
 
         st.error("Event not found. Showing available events below.")
