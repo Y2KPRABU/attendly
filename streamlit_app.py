@@ -23,6 +23,10 @@ st.set_page_config(page_title="Attendly", page_icon="🎉", layout="wide")
 SESSION_SELECTED_EVENT = "selected_event_id"
 SESSION_INFO_EVENT = "info_event_id"
 
+# Backwards-compatibility flag: some deployed instances may still reference
+# `route_active`. Define it here to avoid NameError during a rolling deploy.
+route_active = False
+
 
 def load_css():
     css_path = Path(__file__).parent / ".streamlit" / "theme.css"
