@@ -40,17 +40,25 @@ def init_session_state():
 
 
 def get_route_selection():
-    return None, False
+    event_id = st.query_params.get("event", [None])[0]
+    info = str(st.query_params.get("info", [""])[0]).lower() in {"1", "true", "yes"}
+    return event_id, info
+
+
+def load_static_html(filename: str) -> str:
+    html_path = Path(__file__).parent / "static" / filename
+    if not html_path.exists():
+        raise FileNotFoundError(f"Missing static route template: {html_path}")
+    return html_path.read_text()
 
 
 def push_route(event_id: str, info: bool = False):
     route = f"/event/{event_id}"
     if info:
         route += "/info"
-    components.html(
-        f"<script>window.history.replaceState(null, '', '{route}');</script>",
-        height=0,
-    )
+    template = load_static_html("route_push.html")
+    html = template.replace("{route}", route)
+    components.html(html, height=0)
 
 
 def clear_route():
@@ -61,21 +69,17 @@ def clear_route():
 
 
 def sync_route_from_path():
-    components.html(
-        """
-        <script>
-        const path = window.location.pathname;
-        const match = path.match(/^\/event\/([^\/]+)(\/info)?\/?$/);
-        if (match) {
-            const eventId = match[1];
-            const info = !!match[2];
-            const route = '/event/' + eventId + (info ? '/info' : '');
-            window.history.replaceState(null, '', route);
-        }
-        </script>
-        """,
-        height=0,
-    )
+    html = load_static_html("route_sync.html")
+    components.html(html, height=0)
+
+
+def clean_route_path(event_id: str, info: bool = False):
+    route = f"/event/{event_id}"
+    if info:
+        route += "/info"
+    template = load_static_html("route_push.html")
+    html = template.replace("{route}", route)
+    components.html(html, height=0)
 
 
 def render_event_info(event, registrations):
@@ -164,6 +168,17 @@ def create_event_section(events_collection):
 def main():
     init_session_state()
     load_css()
+
+    route_event_id, route_info = get_route_selection()
+    sync_route_from_path()
+    if route_event_id:
+        if route_info:
+            st.session_state[SESSION_INFO_EVENT] = route_event_id
+            st.session_state[SESSION_SELECTED_EVENT] = None
+        else:
+            st.session_state[SESSION_SELECTED_EVENT] = route_event_id
+            st.session_state[SESSION_INFO_EVENT] = None
+        clean_route_path(route_event_id, route_info)
 
     st.title("Attendly")
     st.markdown("Create and manage event RSVPs with mobile-friendly layout.")

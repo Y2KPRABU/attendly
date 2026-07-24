@@ -1,0 +1,11 @@
+<script>
+const path = window.location.pathname;
+const search = window.location.search;
+const match = path.match(/^\/event\/([^\/]+)(\/info)?\/?$/);
+if (match && !new URLSearchParams(search).has('event')) {
+    const eventId = match[1];
+    const info = !!match[2];
+    const url = path + '?event=' + encodeURIComponent(eventId) + (info ? '&info=true' : '');
+    window.location.replace(url);
+}
+</script>
