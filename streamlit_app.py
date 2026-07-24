@@ -187,15 +187,9 @@ def create_event_section(events_collection):
 def main():
     init_session_state()
     load_css()
-    sync_route_from_path()
 
     st.title("Attendly")
     st.markdown("Create and manage event RSVPs with mobile-friendly layout.")
-
-    route_event_id, route_info = get_route_selection()
-    if route_event_id:
-        st.session_state[SESSION_SELECTED_EVENT] = route_event_id if not route_info else None
-        st.session_state[SESSION_INFO_EVENT] = route_event_id if route_info else None
 
     try:
         events_collection = get_events_collection()
