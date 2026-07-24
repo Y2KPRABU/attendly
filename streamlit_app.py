@@ -171,7 +171,9 @@ def main():
 
     route_event_id, route_info = get_route_selection()
     sync_route_from_path()
+    route_active = False
     if route_event_id:
+        route_active = True
         if route_info:
             st.session_state[SESSION_INFO_EVENT] = route_event_id
             st.session_state[SESSION_SELECTED_EVENT] = None
@@ -190,47 +192,52 @@ def main():
         st.error(f"Could not connect to MongoDB: {error}")
         return
 
-    with st.container():
-        create_event_section(events_collection)
-
-    st.markdown("---")
-
-    st.markdown("## Events")
     all_events = list_events(events_collection)
-    if not all_events:
-        st.info("No events yet. Create an event to get started.")
-    else:
-        header_col1, header_col2, header_col3 = st.columns([4, 2, 1])
-        header_col1.markdown("**Event name**")
-        header_col2.markdown("**Event ID**")
-        header_col3.markdown("**Actions**")
 
-        for event in all_events:
-            row_col1, row_col2, row_col3 = st.columns([4, 2, 1])
-            if row_col1.button(event["name"], key=f"open_{event['id']}"):
-                st.session_state[SESSION_SELECTED_EVENT] = event["id"]
-                st.session_state[SESSION_INFO_EVENT] = None
-                push_route(event["id"])
-            row_col2.markdown(f"`{event['id']}`")
-            if row_col3.button("Info", key=f"info_{event['id']}"):
-                st.session_state[SESSION_INFO_EVENT] = event["id"]
-                push_route(event["id"], info=True)
+    if route_active:
+        selected_id = st.session_state[SESSION_SELECTED_EVENT]
+        info_id = st.session_state[SESSION_INFO_EVENT]
 
-    st.markdown("---")
-    selected_id = st.session_state[SESSION_SELECTED_EVENT]
-    info_id = st.session_state[SESSION_INFO_EVENT]
-
-    if selected_id:
-        active_event = next((event for event in all_events if event["id"] == selected_id), None)
-        if active_event:
-            render_event_action(active_event, registrations_collection)
-
-    if info_id:
-        info_event = next((event for event in all_events if event["id"] == info_id), None)
-        if info_event:
-            registrations = list_registrations(registrations_collection, info_event["id"])
-            with st.expander(f"Summary for {info_event['name']} ({info_event['id']})", expanded=True):
+        if selected_id:
+            active_event = next((event for event in all_events if event["id"] == selected_id), None)
+            if active_event:
+                st.markdown(f"## RSVP for {active_event['name']}")
+                render_event_action(active_event, registrations_collection)
+                return
+        elif info_id:
+            info_event = next((event for event in all_events if event["id"] == info_id), None)
+            if info_event:
+                st.markdown(f"## Summary for {info_event['name']}")
+                registrations = list_registrations(registrations_collection, info_event["id"])
                 render_event_info(info_event, registrations)
+                return
+
+        st.error("Event not found. Showing available events below.")
+
+    if not route_active:
+        with st.container():
+            create_event_section(events_collection)
+
+        st.markdown("---")
+        st.markdown("## Events")
+        if not all_events:
+            st.info("No events yet. Create an event to get started.")
+        else:
+            header_col1, header_col2, header_col3 = st.columns([4, 2, 1])
+            header_col1.markdown("**Event name**")
+            header_col2.markdown("**Event ID**")
+            header_col3.markdown("**Actions**")
+
+            for event in all_events:
+                row_col1, row_col2, row_col3 = st.columns([4, 2, 1])
+                if row_col1.button(event["name"], key=f"open_{event['id']}"):
+                    st.session_state[SESSION_SELECTED_EVENT] = event["id"]
+                    st.session_state[SESSION_INFO_EVENT] = None
+                    push_route(event["id"])
+                row_col2.markdown(f"`{event['id']}`")
+                if row_col3.button("Info", key=f"info_{event['id']}"):
+                    st.session_state[SESSION_INFO_EVENT] = event["id"]
+                    push_route(event["id"], info=True)
 
 
 if __name__ == "__main__":
