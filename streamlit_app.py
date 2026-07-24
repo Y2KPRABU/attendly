@@ -89,14 +89,12 @@ def clean_route_path(event_id: str, info: bool = False):
     query = f"?event={event_id}"
     if info:
         query += "&info=true"
-    template = load_static_html("route_nav.html")
-    html = (
-        template
-        .replace("{mode}", "push")
-        .replace("{route}", route)
-        .replace("{query}", query)
+    # Use history.replaceState to update the browser URL without triggering a reload.
+    safe_route = route + query
+    st.html(
+        f"<script>try{{window.history.replaceState(null, '', '{safe_route}');}}catch(e){{/* ignore */}}</script>",
+        unsafe_allow_javascript=True,
     )
-    st.html(html, unsafe_allow_javascript=True)
 
 
 def render_attendance_html(event):
