@@ -15,6 +15,7 @@ from mongodbhelper import (
     get_attendance_totals,
     get_attendee_rows,
     find_event_by_name,
+    find_event_by_id,
 )
 
 st.set_page_config(page_title="Attendly", page_icon="🎉", layout="wide")
@@ -40,8 +41,11 @@ def init_session_state():
 
 
 def get_route_selection():
-    event_id = st.query_params.get("event", [None])[0]
-    info = str(st.query_params.get("info", [""])[0]).lower() in {"1", "true", "yes"}
+    # Normalize query param keys to be case-insensitive (some hosts may change casing)
+    params = {k.lower(): v for k, v in st.query_params.items()}
+    event_id = params.get("event", [None])[0]
+    info_raw = params.get("info", [""])[0]
+    info = str(info_raw).lower() in {"1", "true", "yes"}
     return event_id, info
 
 
