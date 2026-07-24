@@ -304,8 +304,10 @@ def main():
 
             for event in all_events:
                 row_col1, row_col2, row_col3 = st.columns([4, 2, 1])
-                event_link = f"/event/{event['id']}?event={event['id']}"
-                info_link = f"/event/{event['id']}/info?event={event['id']}&info=true"
+                # Navigate to root with query params first so Streamlit receives them,
+                # then `clean_route_path` will rewrite the visible path using replaceState.
+                event_link = f"/?event={event['id']}"
+                info_link = f"/?event={event['id']}&info=true"
                 primary_style = "display:inline-block;padding:10px 14px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;font-weight:600;font-size:16px;"
                 secondary_style = "display:inline-block;padding:8px 12px;border-radius:8px;background:#f3f4f6;color:#111;text-decoration:none;font-weight:600;border:1px solid #e5e7eb;"
                 row_col1.markdown(f"<a href='{event_link}' style='{primary_style}'>{event['name']}</a>", unsafe_allow_html=True)
