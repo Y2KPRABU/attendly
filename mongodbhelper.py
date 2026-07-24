@@ -26,24 +26,45 @@ def get_mongo_uri():
     checked_sources.append("MONGODB_URI environment variable")
 
     if not uri:
-        possible_files = [
-            Path.cwd() / ".streamlit" / "secrets.toml",
-            Path(__file__).parent / ".streamlit" / "secrets.toml",
-        ]
+        def collect_secrets_files(base_path):
+            files = []
+            current = base_path.resolve()
+            while True:
+                files.append(current / ".streamlit" / "secrets.toml")
+                if current == current.parent:
+                    break
+                current = current.parent
+            return files
+
+        possible_files = []
+        possible_files.extend(collect_secrets_files(Path.cwd()))
+        possible_files.extend(collect_secrets_files(Path(__file__).resolve().parent))
+
+        seen = set()
         for secrets_path in possible_files:
-            if secrets_path.exists():
-                try:
-                    with secrets_path.open("rb") as f:
-                        secrets = tomllib.load(f)
-                    uri = secrets.get("mongodb", {}).get("uri")
-                    checked_sources.append(str(secrets_path))
-                    if uri:
-                        break
-                except Exception:
-                    uri = None
+            resolved = secrets_path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+
+            if not resolved.exists():
+                checked_sources.append(f"{resolved} (missing)")
+                continue
+
+            try:
+                with resolved.open("rb") as f:
+                    secrets = tomllib.load(f)
+                uri = secrets.get("mongodb", {}).get("uri")
+                if uri:
+                    checked_sources.append(f"{resolved} (loaded, uri found)")
+                    break
+                checked_sources.append(f"{resolved} (loaded, uri missing)")
+            except Exception as exc:
+                checked_sources.append(f"{resolved} (parse failed: {exc.__class__.__name__})")
+                uri = None
 
     if not uri:
-        sources = ", ".join(checked_sources)
+        sources = ", ".join(checked_sources) if checked_sources else "none"
         raise ValueError(
             "MongoDB URI not found. Checked: "
             f"{sources}. Set the MONGODB_URI environment variable or add it to `.streamlit/secrets.toml` under [mongodb]."
