@@ -58,19 +58,19 @@ def push_route(event_id: str, info: bool = False):
         route += "/info"
     template = load_static_html("route_push.html")
     html = template.replace("{route}", route)
-    components.html(html, height=0)
+    st.html(html, unsafe_allow_javascript=True)
 
 
 def clear_route():
-    components.html(
+    st.html(
         "<script>window.history.replaceState(null, '', '/');</script>",
-        height=0,
+        unsafe_allow_javascript=True,
     )
 
 
 def sync_route_from_path():
     html = load_static_html("route_sync.html")
-    components.html(html, height=0)
+    st.html(html, unsafe_allow_javascript=True)
 
 
 def clean_route_path(event_id: str, info: bool = False):
@@ -79,7 +79,7 @@ def clean_route_path(event_id: str, info: bool = False):
         route += "/info"
     template = load_static_html("route_push.html")
     html = template.replace("{route}", route)
-    components.html(html, height=0)
+    st.html(html, unsafe_allow_javascript=True)
 
 
 def render_event_info(event, registrations):
